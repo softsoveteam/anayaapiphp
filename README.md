@@ -33,10 +33,11 @@ Change both later in Settings.
 
 ## Scheduler
 
-Copies yesterday’s work to today when an employee has no schedule:
+Copies yesterday’s work to today when an employee has no schedule, and finishes expired Work Start timers:
 
 ```bash
 php artisan schedule:work
 # or once
 php artisan anaya:copy-yesterday-assignments
+php artisan anaya:complete-due-sessions
 ```

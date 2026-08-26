@@ -68,6 +68,11 @@ class User extends Authenticatable
         return $this->hasMany(WorkReport::class, 'employee_id');
     }
 
+    public function workSessions(): HasMany
+    {
+        return $this->hasMany(WorkSession::class, 'employee_id');
+    }
+
     public function canLogin(): bool
     {
         if ($this->hasAnyRole(['admin', 'manager'])) {

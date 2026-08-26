@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('anaya:copy-yesterday-assignments')->dailyAt('00:05');
+Schedule::command('anaya:complete-due-sessions')->everyMinute();

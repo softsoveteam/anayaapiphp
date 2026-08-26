@@ -48,14 +48,28 @@ class ComputerController extends Controller
         ]);
     }
 
+    public function nextNumber(): JsonResponse
+    {
+        $next = Computer::nextUniqueNumber();
+
+        return response()->json([
+            'unique_number' => $next,
+            'label' => $next,
+        ]);
+    }
+
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'unique_number' => ['required', 'string', 'max:100', 'unique:computers,unique_number'],
+            'unique_number' => ['nullable', 'string', 'max:100', 'unique:computers,unique_number'],
             'label' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', Rule::in(ComputerStatus::values())],
             'notes' => ['nullable', 'string'],
         ]);
+
+        $next = Computer::nextUniqueNumber();
+        $data['unique_number'] = $data['unique_number'] ?: $next;
+        $data['label'] = $data['label'] ?: $data['unique_number'];
 
         $computer = Computer::create($data);
         $computer->load(['currentAssignment.employee']);

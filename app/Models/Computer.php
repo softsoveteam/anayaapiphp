@@ -32,4 +32,20 @@ class Computer extends Model
     {
         return $this->hasOne(ComputerAssignment::class)->whereNull('unassigned_at');
     }
+
+    public static function nextUniqueNumber(): string
+    {
+        $values = static::query()->pluck('unique_number')->merge(
+            static::query()->pluck('label')
+        );
+
+        $max = 0;
+        foreach ($values as $value) {
+            if (preg_match('/PC-(\d+)/i', (string) $value, $m)) {
+                $max = max($max, (int) $m[1]);
+            }
+        }
+
+        return 'PC-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
+    }
 }

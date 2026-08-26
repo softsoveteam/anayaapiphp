@@ -133,11 +133,11 @@ class DashboardController extends Controller
                 'today_clicks' => $todayClicks,
                 'yesterday_clicks' => $yesterdayClicks,
                 'clicks_change' => $this->pctChange($todayClicks, $yesterdayClicks),
-                'assignments' => $assignments->count(),
-                'submitted' => $assignments->filter(fn ($a) => $a->report)->count(),
+                'assignments' => $assignments->unique('site_id')->count(),
+                'submitted' => $assignments->filter(fn ($a) => $a->report)->unique('site_id')->count(),
                 'computers_assigned' => $user->activeComputerAssignments()->count(),
             ],
-            'assignments' => $assignments->map(fn ($a) => [
+            'assignments' => $assignments->unique('site_id')->values()->map(fn ($a) => [
                 'id' => $a->id,
                 'site_name' => $a->site?->name,
                 'keyword' => $a->keyword?->keyword,

@@ -57,9 +57,9 @@ class ReportController extends Controller
         $user = $request->user();
         $isManager = $user->hasAnyRole(['admin', 'manager']);
 
-        if (! $isManager && $date !== now()->toDateString()) {
+        if (! $isManager) {
             throw ValidationException::withMessages([
-                'date' => ['Employees can only submit reports for today.'],
+                'items' => ['Clicks are counted automatically when a work session finishes. Manual entry is not allowed.'],
             ]);
         }
 
