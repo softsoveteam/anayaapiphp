@@ -38,6 +38,11 @@ class AppSetting extends Model
         return filter_var(static::getValue('multiple_keywords', '0'), FILTER_VALIDATE_BOOLEAN);
     }
 
+    public static function employeeEarnings(): bool
+    {
+        return filter_var(static::getValue('employee_earnings', '0'), FILTER_VALIDATE_BOOLEAN);
+    }
+
     /**
      * Tabs the employee must open this session: every keyword when the setting is on, otherwise one per site.
      */

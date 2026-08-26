@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AppSetting;
 use App\Models\User;
 use App\Services\PayrollService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -25,6 +26,7 @@ class SalaryController extends Controller
 
     public function mine(Request $request): JsonResponse
     {
+        $this->ensureEmployeeEarnings($request);
         $month = $this->month($request);
 
         return response()->json($this->payroll->resolveForEmployee($request->user(), $month));
@@ -32,6 +34,7 @@ class SalaryController extends Controller
 
     public function minePdf(Request $request): SymfonyResponse
     {
+        $this->ensureEmployeeEarnings($request);
         $month = $this->month($request);
 
         return $this->payslipResponse($this->payroll->resolveForEmployee($request->user(), $month));
@@ -61,6 +64,20 @@ class SalaryController extends Controller
             'frozen' => $frozen,
             'report' => $this->payroll->forMonth($month),
         ]);
+    }
+
+    private function ensureEmployeeEarnings(Request $request): void
+    {
+        if (AppSetting::employeeEarnings()) {
+            return;
+        }
+
+        $user = $request->user();
+        if ($user && $user->hasAnyRole(['admin', 'manager'])) {
+            return;
+        }
+
+        abort(403, 'Earnings are not enabled for employees.');
     }
 
     private function payslipResponse(array $row): Response
