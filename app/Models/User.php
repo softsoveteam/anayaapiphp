@@ -28,6 +28,7 @@ class User extends Authenticatable
         'status',
         'interview_date',
         'joining_date',
+        'monthly_salary',
         'notes',
         'password',
     ];
@@ -45,6 +46,7 @@ class User extends Authenticatable
             'status' => EmployeeStatus::class,
             'interview_date' => 'date',
             'joining_date' => 'date',
+            'monthly_salary' => 'decimal:2',
         ];
     }
 
@@ -71,6 +73,11 @@ class User extends Authenticatable
     public function workSessions(): HasMany
     {
         return $this->hasMany(WorkSession::class, 'employee_id');
+    }
+
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class, 'employee_id');
     }
 
     public function canLogin(): bool

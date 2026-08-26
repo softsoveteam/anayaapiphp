@@ -160,6 +160,7 @@ class EmployeeController extends Controller
             'status' => ['nullable', Rule::in(EmployeeStatus::values())],
             'interview_date' => ['nullable', 'date'],
             'joining_date' => ['nullable', 'date'],
+            'monthly_salary' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string'],
             'password' => [$employee ? 'nullable' : 'nullable', 'string', 'min:6'],
             'role' => ['nullable', $roleRule],

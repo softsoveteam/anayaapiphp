@@ -22,6 +22,7 @@ class UserResource extends JsonResource
             'status_label' => $this->status?->label(),
             'interview_date' => $this->interview_date?->toDateString(),
             'joining_date' => $this->joining_date?->toDateString(),
+            'monthly_salary' => $this->monthly_salary !== null ? (float) $this->monthly_salary : null,
             'notes' => $this->notes,
             'role' => $this->primaryRole(),
             'roles' => $this->getRoleNames()->values(),

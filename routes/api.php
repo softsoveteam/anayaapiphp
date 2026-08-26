@@ -7,6 +7,9 @@ use App\Http\Controllers\Api\ComputerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\HolidayController;
+use App\Http\Controllers\Api\LeaveController;
+use App\Http\Controllers\Api\SalaryController;
 use App\Http\Controllers\Api\SiteController;
 use App\Http\Controllers\Api\WorkSessionController;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +33,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/my/work-session', [WorkSessionController::class, 'show']);
     Route::post('/my/work-session/start', [WorkSessionController::class, 'start']);
     Route::post('/my/work-session/complete', [WorkSessionController::class, 'complete']);
+    Route::get('/holidays', [HolidayController::class, 'index']);
+    Route::get('/calendar', [LeaveController::class, 'calendar']);
+    Route::get('/my/leaves', [LeaveController::class, 'mine']);
+    Route::post('/my/leaves', [LeaveController::class, 'store']);
+    Route::delete('/my/leaves/{leave}', [LeaveController::class, 'destroy']);
+    Route::get('/my/earnings', [SalaryController::class, 'mine']);
 
     Route::middleware('role:admin|manager,sanctum')->group(function () {
         Route::get('/employees/next-id', [EmployeeController::class, 'nextId']);
@@ -54,5 +63,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/reports', [ReportController::class, 'index']);
         Route::put('/app-settings', [AppSettingController::class, 'update']);
+
+        Route::post('/holidays', [HolidayController::class, 'store']);
+        Route::put('/holidays/{holiday}', [HolidayController::class, 'update']);
+        Route::delete('/holidays/{holiday}', [HolidayController::class, 'destroy']);
+
+        Route::get('/leaves', [LeaveController::class, 'index']);
+        Route::patch('/leaves/{leave}', [LeaveController::class, 'review']);
+
+        Route::get('/salary', [SalaryController::class, 'index']);
     });
 });
