@@ -19,17 +19,15 @@ Frontend (from `sales-ops-dashboard`): `http://localhost:3000` with `NEXT_PUBLIC
 
 SQLite is the default so the app runs without MySQL. To use MySQL, set `DB_CONNECTION=mysql` and the `DB_*` values in `.env`.
 
-## Demo logins
+## Login
 
-All passwords default to `password` (`ADMIN_PASSWORD` in `.env`).
+After `php artisan migrate:fresh --seed`:
 
-| Unique ID | Role | Notes |
+| Unique ID | Password | Role |
 |---|---|---|
-| `ANAYA-ADMIN` | Admin | Full access |
-| `ANAYA-MGR` | Manager | Employees, computers, work, reports |
-| `ANAYA-0001` | Employee | Ravi — two sites assigned today |
-| `ANAYA-0002` | Employee | Neha |
-| `ANAYA-0003` | Interview pass | Cannot log in until onboarded |
+| `ANAYA-ADMIN` | `Anaya@123` | Admin |
+
+Change both later in Settings.
 
 ## Scheduler
 

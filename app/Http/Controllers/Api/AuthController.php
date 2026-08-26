@@ -79,4 +79,29 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Password updated.']);
     }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'unique_id' => ['sometimes', 'string', 'max:50', 'unique:users,unique_id,'.$user->id],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'current_password' => ['required_with:unique_id', 'string'],
+        ]);
+
+        if (isset($data['current_password']) && ! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Current password is incorrect.'],
+            ]);
+        }
+
+        $user->update(collect($data)->only(['unique_id', 'name'])->all());
+        $user->load(['activeComputerAssignments.computer', 'roles']);
+
+        return response()->json([
+            'message' => 'Profile updated.',
+            'user' => new UserResource($user),
+        ]);
+    }
 }
