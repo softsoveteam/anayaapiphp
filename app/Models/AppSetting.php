@@ -32,4 +32,23 @@ class AppSetting extends Model
 
         return max(1, min(180, $minutes));
     }
+
+    public static function multipleKeywords(): bool
+    {
+        return filter_var(static::getValue('multiple_keywords', '0'), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    /**
+     * Tabs the employee must open this session: every keyword when the setting is on, otherwise one per site.
+     */
+    public static function sessionWorkItems($assignments)
+    {
+        $assignments = collect($assignments);
+
+        if (static::multipleKeywords()) {
+            return $assignments->values();
+        }
+
+        return $assignments->unique('site_id')->values();
+    }
 }

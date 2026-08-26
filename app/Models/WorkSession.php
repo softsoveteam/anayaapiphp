@@ -15,6 +15,7 @@ class WorkSession extends Model
         'finished_at',
         'status',
         'site_count',
+        'computer_count',
         'clicks_awarded',
         'sites',
     ];
@@ -28,6 +29,7 @@ class WorkSession extends Model
             'sites' => 'array',
             'duration_seconds' => 'integer',
             'site_count' => 'integer',
+            'computer_count' => 'integer',
             'clicks_awarded' => 'integer',
         ];
     }

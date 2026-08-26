@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WorkAssignment;
 use App\Models\WorkReport;
 use App\Models\WorkSession;
+use App\Services\PaceService;
 use App\Services\WorkSessionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,10 @@ use Illuminate\Validation\ValidationException;
 
 class WorkSessionController extends Controller
 {
-    public function __construct(private WorkSessionService $sessions) {}
+    public function __construct(
+        private WorkSessionService $sessions,
+        private PaceService $pace,
+    ) {}
 
     public function show(Request $request): JsonResponse
     {
@@ -47,7 +51,7 @@ class WorkSessionController extends Controller
             }
 
             $assignments = WorkAssignment::query()
-                ->with('site')
+                ->with(['site', 'keyword'])
                 ->where('employee_id', $user->id)
                 ->whereDate('work_date', now()->toDateString())
                 ->orderBy('id')
@@ -59,14 +63,20 @@ class WorkSessionController extends Controller
                 ]);
             }
 
-            $sites = $assignments
-                ->unique('site_id')
-                ->values()
-                ->map(fn (WorkAssignment $assignment) => [
-                    'site_id' => $assignment->site_id,
-                    'site_name' => $assignment->site?->name,
-                    'assignment_id' => $assignment->id,
+            $computers = $user->activeComputerAssignments()->count();
+            if ($computers < 1) {
+                throw ValidationException::withMessages([
+                    'session' => ['Assign at least one computer before Work Start. Clicks are counted per computer.'],
                 ]);
+            }
+
+            $workItems = AppSetting::sessionWorkItems($assignments);
+            $sites = $workItems->map(fn (WorkAssignment $assignment) => [
+                'site_id' => $assignment->site_id,
+                'site_name' => $assignment->site?->name,
+                'keyword' => $assignment->keyword?->keyword,
+                'assignment_id' => $assignment->id,
+            ]);
 
             $minutes = AppSetting::sessionMinutes();
             $started = now();
@@ -78,6 +88,7 @@ class WorkSessionController extends Controller
                 'ends_at' => $started->copy()->addMinutes($minutes),
                 'status' => 'running',
                 'site_count' => $sites->count(),
+                'computer_count' => $computers,
                 'clicks_awarded' => 0,
                 'sites' => $sites->all(),
             ]);
@@ -127,6 +138,7 @@ class WorkSessionController extends Controller
             'session_minutes' => AppSetting::sessionMinutes(),
             'today_clicks' => $todayClicks,
             'today_sessions' => $todaySessions,
+            'pace' => $this->pace->forUser($user),
             'current' => $current ? $this->serialize($current) : null,
             'logs' => $logs->map(fn (WorkSession $session) => $this->serialize($session))->values(),
         ]);
@@ -143,6 +155,7 @@ class WorkSessionController extends Controller
             'ends_at' => $session->ends_at?->toIso8601String(),
             'finished_at' => $session->finished_at?->toIso8601String(),
             'site_count' => $session->site_count,
+            'computer_count' => $session->computer_count,
             'clicks_awarded' => $session->clicks_awarded,
             'sites' => $session->sites ?? [],
         ];

@@ -11,22 +11,35 @@ class AppSettingController extends Controller
 {
     public function show(): JsonResponse
     {
-        return response()->json([
-            'session_minutes' => AppSetting::sessionMinutes(),
-        ]);
+        return response()->json($this->payload());
     }
 
     public function update(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'session_minutes' => ['required', 'integer', 'min:1', 'max:180'],
+            'session_minutes' => ['sometimes', 'integer', 'min:1', 'max:180'],
+            'multiple_keywords' => ['sometimes', 'boolean'],
         ]);
 
-        AppSetting::setValue('session_minutes', $data['session_minutes']);
+        if (array_key_exists('session_minutes', $data)) {
+            AppSetting::setValue('session_minutes', $data['session_minutes']);
+        }
+
+        if (array_key_exists('multiple_keywords', $data)) {
+            AppSetting::setValue('multiple_keywords', $data['multiple_keywords'] ? '1' : '0');
+        }
 
         return response()->json([
-            'message' => 'Work session length saved.',
-            'session_minutes' => AppSetting::sessionMinutes(),
+            'message' => 'Settings saved.',
+            ...$this->payload(),
         ]);
+    }
+
+    private function payload(): array
+    {
+        return [
+            'session_minutes' => AppSetting::sessionMinutes(),
+            'multiple_keywords' => AppSetting::multipleKeywords(),
+        ];
     }
 }

@@ -67,6 +67,7 @@ class WorkSessionService
         }
 
         $sites = collect($session->sites ?? []);
+        $computers = (int) ($session->computer_count ?? 0);
         $awarded = 0;
 
         foreach ($sites as $site) {
@@ -97,10 +98,10 @@ class WorkSessionService
             $report->site_id = $assignment->site_id;
             $report->keyword_id = $assignment->keyword_id;
             $report->work_date = $assignment->work_date;
-            $report->click_count = ((int) $report->click_count) + 1;
+            $report->click_count = ((int) $report->click_count) + $computers;
             $report->submitted_at = now();
             $report->save();
-            $awarded++;
+            $awarded += $computers;
         }
 
         $session->update([
