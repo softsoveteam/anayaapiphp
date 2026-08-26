@@ -6,12 +6,14 @@ use App\Enums\SiteStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Keyword;
 use App\Models\Site;
+use App\Services\SiteBrandingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class SiteController extends Controller
 {
+    public function __construct(private SiteBrandingService $branding) {}
     public function index(): JsonResponse
     {
         $sites = Site::query()->with('keywords')->orderBy('name')->get();
@@ -30,7 +32,9 @@ class SiteController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
+        $data['url'] = Site::normalizeUrl($data['url']);
         $site = Site::create($data);
+        $this->branding->apply($site);
         $site->load('keywords');
 
         return response()->json(['data' => $this->serialize($site)], 201);
@@ -45,7 +49,14 @@ class SiteController extends Controller
             'notes' => ['nullable', 'string'],
         ]);
 
+        if (isset($data['url'])) {
+            $data['url'] = Site::normalizeUrl($data['url']);
+        }
+
         $site->update($data);
+        if (array_key_exists('url', $data)) {
+            $this->branding->apply($site);
+        }
         $site->load('keywords');
 
         return response()->json(['data' => $this->serialize($site)]);
@@ -99,6 +110,8 @@ class SiteController extends Controller
             'id' => $site->id,
             'name' => $site->name,
             'url' => $site->url,
+            'domain' => $site->resolvedDomain(),
+            'favicon_url' => $site->resolvedFavicon(),
             'status' => $site->status?->value,
             'notes' => $site->notes,
             'keywords' => $site->keywords->map(fn (Keyword $k) => $this->serializeKeyword($k))->values(),

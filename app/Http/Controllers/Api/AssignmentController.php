@@ -180,6 +180,8 @@ class AssignmentController extends Controller
                 'id' => $assignment->site?->id,
                 'name' => $assignment->site?->name,
                 'url' => $assignment->site?->url,
+                'domain' => $assignment->site?->resolvedDomain(),
+                'favicon_url' => $assignment->site?->resolvedFavicon(),
             ],
             'keyword_id' => $assignment->keyword_id,
             'keyword' => $assignment->keyword?->keyword,

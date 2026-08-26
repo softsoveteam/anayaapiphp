@@ -34,6 +34,8 @@ class ReportController extends Controller
                     'site_id' => $a->site_id,
                     'site_name' => $a->site?->name,
                     'site_url' => $a->site?->url,
+                    'site_domain' => $a->site?->resolvedDomain(),
+                    'site_favicon' => $a->site?->resolvedFavicon(),
                     'keyword_id' => $a->keyword_id,
                     'keyword' => $a->keyword?->keyword,
                     'click_count' => (int) ($a->report?->click_count ?? 0),

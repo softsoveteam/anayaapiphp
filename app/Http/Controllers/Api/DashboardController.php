@@ -143,6 +143,8 @@ class DashboardController extends Controller
                 'id' => $a->id,
                 'site_name' => $a->site?->name,
                 'site_url' => $a->site?->url,
+                'site_domain' => $a->site?->resolvedDomain(),
+                'site_favicon' => $a->site?->resolvedFavicon(),
                 'keyword' => $a->keyword?->keyword,
                 'click_count' => (int) ($a->report?->click_count ?? 0),
             ];
