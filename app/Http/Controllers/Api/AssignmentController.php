@@ -94,6 +94,66 @@ class AssignmentController extends Controller
         return response()->json(['data' => $created], 201);
     }
 
+    public function update(Request $request, WorkAssignment $assignment): JsonResponse
+    {
+        $data = $request->validate([
+            'employee_id' => ['sometimes', 'exists:users,id'],
+            'site_id' => ['sometimes', 'exists:sites,id'],
+            'keyword_id' => ['sometimes', 'exists:keywords,id'],
+            'work_date' => ['sometimes', 'date'],
+            'target_clicks' => ['nullable', 'integer', 'min:0'],
+        ]);
+
+        $employeeId = $data['employee_id'] ?? $assignment->employee_id;
+        $siteId = $data['site_id'] ?? $assignment->site_id;
+        $keywordId = $data['keyword_id'] ?? $assignment->keyword_id;
+        $workDate = $data['work_date'] ?? $assignment->work_date?->toDateString();
+
+        $keyword = Keyword::findOrFail($keywordId);
+        if ((int) $keyword->site_id !== (int) $siteId) {
+            throw ValidationException::withMessages([
+                'keyword_id' => ['Keyword does not belong to the selected site.'],
+            ]);
+        }
+
+        $duplicate = WorkAssignment::query()
+            ->where('employee_id', $employeeId)
+            ->where('site_id', $siteId)
+            ->where('keyword_id', $keywordId)
+            ->whereDate('work_date', $workDate)
+            ->where('id', '!=', $assignment->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'keyword_id' => ['This employee already has this site and keyword on that date.'],
+            ]);
+        }
+
+        $assignment->update([
+            'employee_id' => $employeeId,
+            'site_id' => $siteId,
+            'keyword_id' => $keywordId,
+            'work_date' => $workDate,
+            'target_clicks' => array_key_exists('target_clicks', $data) ? $data['target_clicks'] : $assignment->target_clicks,
+            'scheduled_by' => $request->user()->id,
+            'is_auto_copied' => false,
+        ]);
+
+        if ($assignment->report) {
+            $assignment->report->update([
+                'employee_id' => $employeeId,
+                'site_id' => $siteId,
+                'keyword_id' => $keywordId,
+                'work_date' => $workDate,
+            ]);
+        }
+
+        $assignment->load(['employee', 'site', 'keyword', 'scheduledBy', 'report']);
+
+        return response()->json(['data' => $this->serialize($assignment)]);
+    }
+
     public function destroy(WorkAssignment $assignment): JsonResponse
     {
         if ($assignment->report) {

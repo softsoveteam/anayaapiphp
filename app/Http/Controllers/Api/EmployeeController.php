@@ -30,6 +30,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $query = User::query()
+            ->withoutAdmins()
             ->with(['roles', 'activeComputerAssignments.computer']);
 
         if ($search = $request->string('search')->toString()) {

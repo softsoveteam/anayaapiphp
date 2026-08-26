@@ -117,4 +117,11 @@ class User extends Authenticatable
 
         return sprintf('%d-%010d-%s', $tier, $seq, $this->unique_id);
     }
+
+    public function scopeWithoutAdmins($query)
+    {
+        return $query
+            ->where('unique_id', '!=', 'ANAYA-ADMIN')
+            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'admin'));
+    }
 }
