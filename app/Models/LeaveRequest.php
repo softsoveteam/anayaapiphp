@@ -18,6 +18,8 @@ class LeaveRequest extends Model
         'start_date',
         'end_date',
         'days',
+        'portion',
+        'half',
         'reason',
         'status',
         'reviewed_by',
@@ -30,7 +32,8 @@ class LeaveRequest extends Model
             'start_date' => 'date',
             'end_date' => 'date',
             'reviewed_at' => 'datetime',
-            'days' => 'integer',
+            'days' => 'float',
+            'portion' => 'float',
         ];
     }
 

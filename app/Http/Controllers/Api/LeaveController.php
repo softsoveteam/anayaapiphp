@@ -100,6 +100,7 @@ class LeaveController extends Controller
         $data = $request->validate([
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'half' => ['nullable', Rule::in(['morning', 'afternoon'])],
             'reason' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -108,10 +109,17 @@ class LeaveController extends Controller
         $today = now($tz)->startOfDay();
         $start = Carbon::parse($data['start_date'], $tz)->startOfDay();
         $end = Carbon::parse($data['end_date'], $tz)->startOfDay();
+        $half = $data['half'] ?? null;
 
         if ($start->lt($today)) {
             throw ValidationException::withMessages([
                 'start_date' => ['Leave can only be applied for today or a future date.'],
+            ]);
+        }
+
+        if ($half && ! $start->isSameDay($end)) {
+            throw ValidationException::withMessages([
+                'half' => ['Morning or afternoon leave can only be applied for a single day.'],
             ]);
         }
 
@@ -124,17 +132,21 @@ class LeaveController extends Controller
             ]);
         }
 
-        if ($this->payroll->overlappingLeave($user->id, $start->toDateString(), $end->toDateString())) {
+        if ($this->payroll->overlappingLeave($user->id, $start->toDateString(), $end->toDateString(), null, $half)) {
             throw ValidationException::withMessages([
-                'start_date' => ['You already have pending or approved leave on one of these dates.'],
+                'start_date' => ['You already have pending or approved leave on one of these dates or the same half.'],
             ]);
         }
+
+        $portion = $half ? 0.5 : 1.0;
 
         $leave = LeaveRequest::query()->create([
             'employee_id' => $user->id,
             'start_date' => $start->toDateString(),
             'end_date' => $end->toDateString(),
             'days' => count($dates),
+            'portion' => $portion,
+            'half' => $half,
             'reason' => $data['reason'] ?? null,
             'status' => LeaveRequest::STATUS_PENDING,
         ]);

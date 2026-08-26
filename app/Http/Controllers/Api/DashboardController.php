@@ -9,11 +9,14 @@ use App\Models\Computer;
 use App\Models\User;
 use App\Models\WorkAssignment;
 use App\Models\WorkReport;
+use App\Services\AttendanceService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    public function __construct(private AttendanceService $attendance) {}
+
     public function show(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -127,23 +130,37 @@ class DashboardController extends Controller
             ->sortKeys()
             ->values();
 
+        $mapped = $assignments->map(function (WorkAssignment $a) {
+            $clicks = (int) ($a->report?->click_count ?? 0);
+            $target = $a->target_clicks;
+            $remaining = $target !== null ? max(0, $target - $clicks) : null;
+
+            return [
+                'id' => $a->id,
+                'site_name' => $a->site?->name,
+                'site_url' => $a->site?->url,
+                'keyword' => $a->keyword?->keyword,
+                'target_clicks' => $target,
+                'click_count' => $clicks,
+                'remaining' => $remaining,
+            ];
+        });
+
+        $needMore = $mapped->sum(fn ($a) => $a['remaining'] ?? 0);
+
         return response()->json([
             'today' => $today,
             'metrics' => [
                 'today_clicks' => $todayClicks,
                 'yesterday_clicks' => $yesterdayClicks,
                 'clicks_change' => $this->pctChange($todayClicks, $yesterdayClicks),
-                'assignments' => $assignments->unique('site_id')->count(),
-                'submitted' => $assignments->filter(fn ($a) => $a->report)->unique('site_id')->count(),
+                'assignments' => $assignments->count(),
+                'submitted' => $assignments->filter(fn ($a) => $a->report)->count(),
                 'computers_assigned' => $user->activeComputerAssignments()->count(),
+                'sessions_needed' => $needMore,
             ],
-            'assignments' => $assignments->unique('site_id')->values()->map(fn ($a) => [
-                'id' => $a->id,
-                'site_name' => $a->site?->name,
-                'keyword' => $a->keyword?->keyword,
-                'target_clicks' => $a->target_clicks,
-                'click_count' => $a->report?->click_count,
-            ]),
+            'assignments' => $mapped->values(),
+            'attendance' => $this->attendance->forUser($user),
             'trend' => $trend,
         ]);
     }

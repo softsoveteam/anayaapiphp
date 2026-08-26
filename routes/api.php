@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ComputerController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\FloorController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\HolidayController;
 use App\Http\Controllers\Api\LeaveController;
@@ -39,8 +40,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/my/leaves', [LeaveController::class, 'store']);
     Route::delete('/my/leaves/{leave}', [LeaveController::class, 'destroy']);
     Route::get('/my/earnings', [SalaryController::class, 'mine']);
+    Route::get('/my/earnings.pdf', [SalaryController::class, 'minePdf']);
 
     Route::middleware('role:admin|manager,sanctum')->group(function () {
+        Route::get('/floor', [FloorController::class, 'show']);
         Route::get('/employees/next-id', [EmployeeController::class, 'nextId']);
         Route::apiResource('employees', EmployeeController::class);
         Route::patch('/employees/{employee}/status', [EmployeeController::class, 'updateStatus']);
@@ -72,5 +75,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/leaves/{leave}', [LeaveController::class, 'review']);
 
         Route::get('/salary', [SalaryController::class, 'index']);
+        Route::post('/salary/freeze', [SalaryController::class, 'freeze']);
+        Route::get('/salary/{employee}/payslip', [SalaryController::class, 'payslip']);
     });
 });

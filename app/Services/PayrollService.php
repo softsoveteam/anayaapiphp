@@ -5,9 +5,11 @@ namespace App\Services;
 use App\Enums\EmployeeStatus;
 use App\Models\Holiday;
 use App\Models\LeaveRequest;
+use App\Models\PayrollSnapshot;
 use App\Models\User;
 use App\Models\WorkSession;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 class PayrollService
 {
@@ -73,8 +75,7 @@ class PayrollService
 
     public function forMonth(string $month): array
     {
-        [$start, $end] = $this->monthBounds($month);
-        $holidays = $this->holidayDates($start, $end);
+        [$start] = $this->monthBounds($month);
 
         $employees = User::query()
             ->role('employee')
@@ -82,7 +83,9 @@ class PayrollService
             ->orderBy('name')
             ->get();
 
-        $rows = $employees->map(fn (User $user) => $this->forEmployee($user, $month, $start, $end, $holidays, false));
+        $rows = $employees->map(fn (User $user) => $this->resolveForEmployee($user, $month, false));
+        $frozenCount = $rows->where('frozen', true)->count();
+        $live = $this->isCurrentMonth($month);
 
         return [
             'month' => $month,
@@ -90,6 +93,10 @@ class PayrollService
             'work_start' => self::WORK_START,
             'work_end' => self::WORK_END,
             'paid_leave_quota' => self::PAID_LEAVE_PER_MONTH,
+            'live' => $live,
+            'frozen' => ! $live && $frozenCount === $rows->count() && $rows->isNotEmpty(),
+            'frozen_count' => $frozenCount,
+            'previous_month' => $this->previousMonth(),
             'totals' => [
                 'employees' => $rows->count(),
                 'base' => round($rows->sum('base'), 2),
@@ -99,6 +106,92 @@ class PayrollService
             ],
             'data' => $rows->values(),
         ];
+    }
+
+    public function currentMonth(): string
+    {
+        return now(self::TIMEZONE)->format('Y-m');
+    }
+
+    public function previousMonth(?string $from = null): string
+    {
+        $from ??= $this->currentMonth();
+
+        return Carbon::createFromFormat('Y-m', $from, self::TIMEZONE)->subMonthNoOverflow()->format('Y-m');
+    }
+
+    public function isCurrentMonth(string $month): bool
+    {
+        return $month === $this->currentMonth();
+    }
+
+    public function resolveForEmployee(User $user, string $month, bool $withOtLog = true): array
+    {
+        if (! $this->isCurrentMonth($month)) {
+            $snapshot = PayrollSnapshot::query()
+                ->where('employee_id', $user->id)
+                ->where('month', $month)
+                ->first();
+
+            if ($snapshot) {
+                $payload = $snapshot->payload ?? [];
+                $payload['frozen'] = true;
+                $payload['frozen_at'] = $snapshot->frozen_at?->timezone(self::TIMEZONE)->toIso8601String();
+                if (! $withOtLog) {
+                    unset($payload['overtime_sessions']);
+                }
+
+                return $payload;
+            }
+        }
+
+        $row = $this->forEmployee($user, $month, withOtLog: $withOtLog);
+        $row['frozen'] = false;
+        $row['frozen_at'] = null;
+
+        return $row;
+    }
+
+    public function freezeMonth(string $month, bool $onlyMissing = true): int
+    {
+        if ($this->isCurrentMonth($month)) {
+            throw ValidationException::withMessages([
+                'month' => ['The current month stays live until it ends.'],
+            ]);
+        }
+
+        $employees = User::query()
+            ->role('employee')
+            ->where('status', EmployeeStatus::Joined)
+            ->orderBy('name')
+            ->get();
+
+        $count = 0;
+        foreach ($employees as $user) {
+            $existing = PayrollSnapshot::query()
+                ->where('employee_id', $user->id)
+                ->where('month', $month)
+                ->exists();
+
+            if ($existing && $onlyMissing) {
+                continue;
+            }
+
+            $payload = $this->forEmployee($user, $month);
+            $payload['frozen'] = true;
+            $payload['frozen_at'] = now(self::TIMEZONE)->toIso8601String();
+
+            PayrollSnapshot::query()->updateOrCreate(
+                ['employee_id' => $user->id, 'month' => $month],
+                [
+                    'payload' => $payload,
+                    'frozen_at' => now(),
+                ],
+            );
+            $count++;
+        }
+
+        return $count;
     }
 
     public function forEmployee(
@@ -120,10 +213,10 @@ class PayrollService
         $hourlyRate = round($dayRate / self::HOURS_PER_DAY, 2);
         $otHourly = round($hourlyRate * self::OT_MULTIPLIER, 2);
 
-        $leaveDays = $this->approvedLeaveDates($user->id, $start, $end, $holidayDates);
-        $leaveDayCount = count($leaveDays);
+        $leaveDays = $this->approvedLeaveUnits($user->id, $start, $end, $holidayDates);
+        $leaveDayCount = round(array_sum(array_column($leaveDays, 'portion')), 2);
         $paidLeaveUsed = min(self::PAID_LEAVE_PER_MONTH, $leaveDayCount);
-        $unpaidDays = max(0, $leaveDayCount - self::PAID_LEAVE_PER_MONTH);
+        $unpaidDays = round(max(0, $leaveDayCount - self::PAID_LEAVE_PER_MONTH), 2);
         $leaveDeduction = round($unpaidDays * $dayRate, 2);
 
         $ot = $this->overtimeForUser($user->id, $start, $end, $holidayDates);
@@ -145,7 +238,8 @@ class PayrollService
             'paid_leave_used' => $paidLeaveUsed,
             'leave_days' => $leaveDayCount,
             'unpaid_leave_days' => $unpaidDays,
-            'leave_dates' => $leaveDays,
+            'leave_dates' => array_column($leaveDays, 'date'),
+            'leave_items' => $leaveDays,
             'leave_deduction' => $leaveDeduction,
             'overtime_seconds' => $ot['seconds'],
             'overtime_hours' => $otHours,
@@ -161,9 +255,9 @@ class PayrollService
     }
 
     /**
-     * @return list<string>
+     * @return list<array{date: string, portion: float, kind: string}>
      */
-    public function approvedLeaveDates(int $employeeId, Carbon $start, Carbon $end, array $holidayDates): array
+    public function approvedLeaveUnits(int $employeeId, Carbon $start, Carbon $end, array $holidayDates): array
     {
         $requests = LeaveRequest::query()
             ->where('employee_id', $employeeId)
@@ -173,19 +267,35 @@ class PayrollService
             ->orderBy('start_date')
             ->get();
 
-        $dates = [];
+        $byDate = [];
         foreach ($requests as $request) {
             $from = $request->start_date->greaterThan($start) ? $request->start_date : $start;
             $to = $request->end_date->lessThan($end) ? $request->end_date : $end;
+            $portion = (float) ($request->portion ?? 1);
             foreach ($this->workingDatesInRange($from, $to, $holidayDates) as $date) {
-                $dates[$date] = true;
+                $byDate[$date] = min(1.0, ($byDate[$date] ?? 0) + $portion);
             }
         }
 
-        $list = array_keys($dates);
-        sort($list);
+        ksort($byDate);
+        $paidLeft = self::PAID_LEAVE_PER_MONTH;
+        $items = [];
+        foreach ($byDate as $date => $portion) {
+            $paid = min($portion, $paidLeft);
+            $paidLeft = round($paidLeft - $paid, 2);
+            $items[] = [
+                'date' => $date,
+                'portion' => $portion,
+                'kind' => $paid >= $portion ? 'paid' : ($paid > 0 ? 'mixed' : 'unpaid'),
+            ];
+        }
 
-        return $list;
+        return $items;
+    }
+
+    public function approvedLeaveDates(int $employeeId, Carbon $start, Carbon $end, array $holidayDates): array
+    {
+        return array_column($this->approvedLeaveUnits($employeeId, $start, $end, $holidayDates), 'date');
     }
 
     public function overtimeForUser(int $employeeId, Carbon $start, Carbon $end, array $holidayDates): array
@@ -278,6 +388,8 @@ class PayrollService
             'start_date' => $leave->start_date?->toDateString(),
             'end_date' => $leave->end_date?->toDateString(),
             'days' => $leave->days,
+            'portion' => (float) ($leave->portion ?? 1),
+            'half' => $leave->half,
             'reason' => $leave->reason,
             'status' => $leave->status,
             'reviewed_by' => $leave->reviewer?->name,
@@ -296,7 +408,7 @@ class PayrollService
         ];
     }
 
-    public function overlappingLeave(int $employeeId, string $start, string $end, ?int $ignoreId = null): ?LeaveRequest
+    public function overlappingLeave(int $employeeId, string $start, string $end, ?int $ignoreId = null, ?string $half = null): ?LeaveRequest
     {
         $query = LeaveRequest::query()
             ->where('employee_id', $employeeId)
@@ -308,6 +420,16 @@ class PayrollService
             $query->whereKeyNot($ignoreId);
         }
 
-        return $query->first();
+        foreach ($query->get() as $existing) {
+            $existingHalf = $existing->half;
+            if (! $existingHalf || ! $half) {
+                return $existing;
+            }
+            if ($existingHalf === $half) {
+                return $existing;
+            }
+        }
+
+        return null;
     }
 }

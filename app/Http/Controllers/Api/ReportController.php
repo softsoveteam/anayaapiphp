@@ -28,18 +28,25 @@ class ReportController extends Controller
             'date' => $date,
             'total_clicks' => $total,
             'submitted' => $assignments->isNotEmpty() && $assignments->every(fn ($a) => $a->report !== null),
-            'data' => $assignments->map(fn (WorkAssignment $a) => [
-                'assignment_id' => $a->id,
-                'site_id' => $a->site_id,
-                'site_name' => $a->site?->name,
-                'site_url' => $a->site?->url,
-                'keyword_id' => $a->keyword_id,
-                'keyword' => $a->keyword?->keyword,
-                'target_clicks' => $a->target_clicks,
-                'click_count' => $a->report?->click_count,
-                'notes' => $a->report?->notes,
-                'submitted_at' => $a->report?->submitted_at?->toIso8601String(),
-            ]),
+            'data' => $assignments->map(function (WorkAssignment $a) {
+                $clicks = (int) ($a->report?->click_count ?? 0);
+                $target = $a->target_clicks;
+                $remaining = $target !== null ? max(0, $target - $clicks) : null;
+
+                return [
+                    'assignment_id' => $a->id,
+                    'site_id' => $a->site_id,
+                    'site_name' => $a->site?->name,
+                    'site_url' => $a->site?->url,
+                    'keyword_id' => $a->keyword_id,
+                    'keyword' => $a->keyword?->keyword,
+                    'target_clicks' => $target,
+                    'click_count' => $clicks,
+                    'remaining' => $remaining,
+                    'notes' => $a->report?->notes,
+                    'submitted_at' => $a->report?->submitted_at?->toIso8601String(),
+                ];
+            }),
         ]);
     }
 

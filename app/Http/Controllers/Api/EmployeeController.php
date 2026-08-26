@@ -78,7 +78,7 @@ class EmployeeController extends Controller
     {
         $data = $this->validated($request, $employee);
         $role = $data['role'] ?? null;
-        unset($data['role'], $data['password']);
+        unset($data['role'], $data['password'], $data['unique_id']);
 
         $employee->update($data);
 
@@ -147,10 +147,11 @@ class EmployeeController extends Controller
 
         return $request->validate([
             'unique_id' => [
-                $employee ? 'sometimes' : 'nullable',
+                'nullable',
                 'string',
                 'max:50',
                 Rule::unique('users', 'unique_id')->ignore($employee?->id),
+                Rule::prohibitedIf($employee !== null),
             ],
             'name' => [$employee ? 'sometimes' : 'required', 'string', 'max:255'],
             'email' => ['nullable', 'email', Rule::unique('users', 'email')->ignore($employee?->id)],

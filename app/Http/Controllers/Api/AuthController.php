@@ -84,19 +84,25 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
+        if ($user->hasRole('employee') && ! $user->hasAnyRole(['admin', 'manager'])) {
+            throw ValidationException::withMessages([
+                'unique_id' => ['Employees can only change their password. Unique ID is assigned automatically.'],
+            ]);
+        }
+
         $data = $request->validate([
-            'unique_id' => ['sometimes', 'string', 'max:50', 'unique:users,unique_id,'.$user->id],
             'name' => ['sometimes', 'string', 'max:255'],
-            'current_password' => ['required_with:unique_id', 'string'],
+            'current_password' => ['required', 'string'],
         ]);
 
-        if (isset($data['current_password']) && ! Hash::check($data['current_password'], $user->password)) {
+        if (! Hash::check($data['current_password'], $user->password)) {
             throw ValidationException::withMessages([
                 'current_password' => ['Current password is incorrect.'],
             ]);
         }
 
-        $user->update(collect($data)->only(['unique_id', 'name'])->all());
+        unset($data['current_password']);
+        $user->update($data);
         $user->load(['activeComputerAssignments.computer', 'roles']);
 
         return response()->json([
