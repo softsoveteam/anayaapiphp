@@ -15,7 +15,9 @@ php artisan serve
 
 API: `http://localhost:8000/api`
 
-Frontend (from `sales-ops-dashboard`): `http://localhost:3000` with `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000/api`.
+On the live host, nginx must send `/api` to Laravel (`try_files $uri $uri/ /index.php?$query_string;`). Until that is set, the frontend uses `/index.php/api`.
+
+Set `FRONTEND_URL=https://anaya.softsove.life` in `.env` so CORS allows the dashboard.
 
 SQLite is the default so the app runs without MySQL. To use MySQL, set `DB_CONNECTION=mysql` and the `DB_*` values in `.env`.
 
