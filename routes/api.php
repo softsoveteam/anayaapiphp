@@ -48,6 +48,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('employees', EmployeeController::class);
         Route::patch('/employees/{employee}/status', [EmployeeController::class, 'updateStatus']);
         Route::patch('/employees/{employee}/password', [EmployeeController::class, 'updatePassword']);
+        Route::post('/employees/{employee}/wipe', [EmployeeController::class, 'wipe']);
 
         Route::get('/computers/next-number', [ComputerController::class, 'nextNumber']);
         Route::apiResource('computers', ComputerController::class)->except(['show']);

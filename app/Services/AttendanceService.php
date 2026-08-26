@@ -73,7 +73,10 @@ class AttendanceService
         } elseif ($running) {
             $status = 'on_timer';
             $label = 'On timer';
-        } elseif ($sessions->isNotEmpty() && $withinHours && $lastAt && $lastAt->lte($now->copy()->subMinutes(self::IDLE_AFTER_MINUTES))) {
+        } elseif (PayrollService::isLunch($now) && $inAt) {
+            $status = 'lunch';
+            $label = 'Lunch · '.PayrollService::LUNCH_START.'–'.PayrollService::LUNCH_END;
+        } elseif ($sessions->isNotEmpty() && $withinHours && $lastAt && $this->idleSeconds($lastAt, $now) >= self::IDLE_AFTER_MINUTES * 60) {
             $status = 'idle';
             $label = 'Idle · no session for '.self::IDLE_AFTER_MINUTES.' min';
         } elseif (! $inAt && $late && $this->payroll->isWorkingDay($now, [])) {
@@ -113,6 +116,7 @@ class AttendanceService
         $counts = [
             'on_timer' => $rows->where('status', 'on_timer')->count(),
             'idle' => $rows->where('status', 'idle')->count(),
+            'lunch' => $rows->where('status', 'lunch')->count(),
             'not_started' => $rows->where('status', 'not_started')->count(),
             'late' => $rows->where('status', 'late')->count(),
             'on_leave' => $rows->where('status', 'on_leave')->count(),
@@ -160,5 +164,13 @@ class AttendanceService
         }
 
         return null;
+    }
+
+    private function idleSeconds(Carbon $lastAt, Carbon $now): int
+    {
+        $elapsed = $now->getTimestamp() - $lastAt->getTimestamp();
+        $elapsed -= PayrollService::lunchOverlapSeconds($lastAt, $now);
+
+        return max(0, $elapsed);
     }
 }

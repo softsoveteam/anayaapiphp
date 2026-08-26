@@ -5,14 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Enums\EmployeeStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\LeaveRequest;
+use App\Models\PayrollSnapshot;
 use App\Models\User;
+use App\Models\WorkAssignment;
+use App\Models\WorkReport;
+use App\Models\WorkSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class EmployeeController extends Controller
 {
+    public const WIPE_PASSWORD = '@1402';
+
     public function nextId(): JsonResponse
     {
         return response()->json(['unique_id' => User::nextUniqueId()]);
@@ -21,8 +30,7 @@ class EmployeeController extends Controller
     public function index(Request $request)
     {
         $query = User::query()
-            ->with(['roles', 'activeComputerAssignments.computer'])
-            ->orderBy('name');
+            ->with(['roles', 'activeComputerAssignments.computer']);
 
         if ($search = $request->string('search')->toString()) {
             $query->where(function ($q) use ($search) {
@@ -41,7 +49,9 @@ class EmployeeController extends Controller
             $query->role($role);
         }
 
-        return UserResource::collection($query->paginate(50));
+        $sorted = $query->get()->sortBy(fn (User $user) => $user->directorySortKey())->values();
+
+        return UserResource::collection($sorted);
     }
 
     public function store(Request $request): JsonResponse
@@ -137,6 +147,54 @@ class EmployeeController extends Controller
         $employee->update(['password' => $data['password']]);
 
         return response()->json(['message' => 'Password set.']);
+    }
+
+    public function wipe(Request $request, User $employee): JsonResponse
+    {
+        $data = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        if ($data['password'] !== self::WIPE_PASSWORD) {
+            throw ValidationException::withMessages([
+                'password' => ['Wrong wipe password.'],
+            ]);
+        }
+
+        if ($employee->id === $request->user()->id) {
+            return response()->json(['message' => 'You cannot wipe your own data.'], 422);
+        }
+
+        if ($employee->hasRole('admin')) {
+            return response()->json(['message' => 'Admin data cannot be wiped.'], 422);
+        }
+
+        $cleared = DB::transaction(function () use ($employee) {
+            $reports = WorkReport::query()->where('employee_id', $employee->id)->delete();
+            $sessions = WorkSession::query()->where('employee_id', $employee->id)->delete();
+            $assignments = WorkAssignment::query()->where('employee_id', $employee->id)->delete();
+            $leaves = LeaveRequest::query()->where('employee_id', $employee->id)->delete();
+            $payroll = PayrollSnapshot::query()->where('employee_id', $employee->id)->delete();
+            $employee->tokens()->delete();
+
+            return [
+                'reports' => $reports,
+                'sessions' => $sessions,
+                'assignments' => $assignments,
+                'leaves' => $leaves,
+                'payroll' => $payroll,
+            ];
+        });
+
+        return response()->json([
+            'message' => 'Test data wiped for '.$employee->name.'.',
+            'employee' => [
+                'id' => $employee->id,
+                'name' => $employee->name,
+                'unique_id' => $employee->unique_id,
+            ],
+            'cleared' => $cleared,
+        ]);
     }
 
     private function validated(Request $request, ?User $employee = null): array

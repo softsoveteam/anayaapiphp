@@ -41,6 +41,8 @@ class LeaveController extends Controller
             'month' => $month,
             'work_start' => PayrollService::WORK_START,
             'work_end' => PayrollService::WORK_END,
+            'lunch_start' => PayrollService::LUNCH_START,
+            'lunch_end' => PayrollService::LUNCH_END,
             'paid_leave_quota' => PayrollService::PAID_LEAVE_PER_MONTH,
             'holidays' => $holidays->map(fn (Holiday $h) => $this->payroll->serializeHoliday($h)),
             'leaves' => $leaves->map(fn (LeaveRequest $l) => $this->payroll->serializeLeave($l)),

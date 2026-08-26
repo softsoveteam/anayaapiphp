@@ -57,6 +57,8 @@ class PaceService
         }
         $sessionsToday = $this->sessionsBetween($dayFrom, $windowEnd, $minutes);
 
+        [$lunchStart, $lunchEnd] = PayrollService::lunchBounds($now);
+
         return [
             'employee_id' => $user->id,
             'name' => $user->name,
@@ -74,6 +76,8 @@ class PaceService
             'expected_today' => $sessionsToday * $perSession,
             'window_start_at' => $windowStart->toIso8601String(),
             'work_end_at' => $windowEnd->toIso8601String(),
+            'lunch_start_at' => $lunchStart->toIso8601String(),
+            'lunch_end_at' => $lunchEnd->toIso8601String(),
             'off' => $off,
         ];
     }
@@ -145,6 +149,13 @@ class PaceService
             return 0;
         }
 
-        return intdiv($to->getTimestamp() - $from->getTimestamp(), $minutes * 60);
+        $seconds = $to->getTimestamp() - $from->getTimestamp();
+        $seconds -= PayrollService::lunchOverlapSeconds($from, $to);
+
+        if ($seconds <= 0) {
+            return 0;
+        }
+
+        return intdiv($seconds, $minutes * 60);
     }
 }

@@ -19,6 +19,10 @@ class PayrollService
 
     public const WORK_END = '18:00';
 
+    public const LUNCH_START = '13:00';
+
+    public const LUNCH_END = '13:45';
+
     public const HOURS_PER_DAY = 9;
 
     public const PAID_LEAVE_PER_MONTH = 1;
@@ -52,6 +56,47 @@ class PayrollService
         }
 
         return ! in_array($local->toDateString(), $holidayDates, true);
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    public static function lunchBounds(Carbon $day): array
+    {
+        $local = $day->copy()->timezone(self::TIMEZONE);
+
+        return [
+            $local->copy()->setTimeFromTimeString(self::LUNCH_START),
+            $local->copy()->setTimeFromTimeString(self::LUNCH_END),
+        ];
+    }
+
+    public static function isLunch(Carbon $now): bool
+    {
+        $local = $now->copy()->timezone(self::TIMEZONE);
+        [$start, $end] = self::lunchBounds($local);
+
+        return $local->gte($start) && $local->lt($end);
+    }
+
+    public static function lunchOverlapSeconds(Carbon $from, Carbon $to): int
+    {
+        $from = $from->copy()->timezone(self::TIMEZONE);
+        $to = $to->copy()->timezone(self::TIMEZONE);
+
+        if ($to->lte($from)) {
+            return 0;
+        }
+
+        [$lunchStart, $lunchEnd] = self::lunchBounds($from);
+        $overlapStart = $from->greaterThan($lunchStart) ? $from : $lunchStart;
+        $overlapEnd = $to->lessThan($lunchEnd) ? $to : $lunchEnd;
+
+        if ($overlapEnd->lte($overlapStart)) {
+            return 0;
+        }
+
+        return $overlapEnd->getTimestamp() - $overlapStart->getTimestamp();
     }
 
     /**

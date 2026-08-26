@@ -106,4 +106,15 @@ class User extends Authenticatable
 
         return 'ANAYA-'.str_pad((string) ($max + 1), 4, '0', STR_PAD_LEFT);
     }
+
+    public function directorySortKey(): string
+    {
+        $tier = $this->hasRole('admin') ? 0 : ($this->hasRole('manager') ? 1 : 2);
+        $seq = 999999999;
+        if (preg_match('/(\d+)$/', (string) $this->unique_id, $m)) {
+            $seq = (int) $m[1];
+        }
+
+        return sprintf('%d-%010d-%s', $tier, $seq, $this->unique_id);
+    }
 }
